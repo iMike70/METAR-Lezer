@@ -3,687 +3,470 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>METAR Lezer</title>
+<title>METAR & TAF Lezer</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
-
   :root {
-    --sky-dark: #0d1b2a;
-    --sky-mid: #1b2d45;
-    --sky-accent: #4a9eda;
-    --cloud: #c8dff0;
-    --rain: #7eb8d4;
-    --text: #e8f4fd;
-    --muted: #7a9ab5;
-    --card: #162436;
-    --border: #2a4060;
-    --green: #5ecb8c;
-    --amber: #f0b429;
-    --red: #e85d5d;
+    --sky-dark: #0d1b2a; --sky-mid: #1b2d45; --sky-accent: #4a9eda;
+    --cloud: #c8dff0; --text: #e8f4fd; --muted: #7a9ab5;
+    --card: #162436; --border: #2a4060;
+    --green: #5ecb8c; --amber: #f0b429; --red: #e85d5d;
   }
-
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--sky-dark); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; font-weight: 300; min-height: 100vh; padding: 2rem 1rem; }
+  header { text-align: center; margin-bottom: 2rem; }
+  .logo { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; letter-spacing: 0.3em; color: var(--sky-accent); text-transform: uppercase; margin-bottom: 0.5rem; }
+  h1 { font-size: 2rem; font-weight: 600; letter-spacing: -0.02em; }
+  h1 span { color: var(--sky-accent); }
+  .subtitle { margin-top: 0.4rem; color: var(--muted); font-size: 0.9rem; }
 
-  body {
-    background: var(--sky-dark);
-    color: var(--text);
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-weight: 300;
-    min-height: 100vh;
-    padding: 2rem 1rem;
-  }
+  /* Tabs */
+  .tabs { display: flex; gap: 0.5rem; max-width: 720px; margin: 0 auto 1.5rem; }
+  .tab { flex: 1; padding: 0.65rem; text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; font-weight: 600; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--muted); transition: all 0.15s; }
+  .tab.active { background: var(--sky-accent); color: var(--sky-dark); border-color: var(--sky-accent); }
 
-  header {
-    text-align: center;
-    margin-bottom: 2.5rem;
-  }
+  .panel { display: none; } .panel.active { display: block; }
 
-  .logo {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.75rem;
-    letter-spacing: 0.3em;
-    color: var(--sky-accent);
-    text-transform: uppercase;
-    margin-bottom: 0.5rem;
-  }
-
-  h1 {
-    font-size: 2rem;
-    font-weight: 600;
-    color: var(--text);
-    letter-spacing: -0.02em;
-  }
-
-  h1 span {
-    color: var(--sky-accent);
-  }
-
-  .subtitle {
-    margin-top: 0.4rem;
-    color: var(--muted);
-    font-size: 0.9rem;
-  }
-
-  .input-area {
-    max-width: 720px;
-    margin: 0 auto 2rem;
-  }
-
-  textarea {
-    width: 100%;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.85rem;
-    padding: 1rem;
-    resize: vertical;
-    min-height: 120px;
-    outline: none;
-    transition: border-color 0.2s;
-    line-height: 1.6;
-  }
-
+  .input-area { max-width: 720px; margin: 0 auto 1.5rem; }
+  textarea { width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; padding: 1rem; resize: vertical; min-height: 120px; outline: none; transition: border-color 0.2s; line-height: 1.6; }
   textarea:focus { border-color: var(--sky-accent); }
   textarea::placeholder { color: var(--muted); }
-
-  .btn-row {
-    display: flex;
-    gap: 0.75rem;
-    margin-top: 0.75rem;
-  }
-
-  button {
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 0.9rem;
-    font-weight: 600;
-    border: none;
-    border-radius: 6px;
-    padding: 0.65rem 1.4rem;
-    cursor: pointer;
-    transition: opacity 0.15s, transform 0.1s;
-  }
-
+  .btn-row { display: flex; gap: 0.75rem; margin-top: 0.75rem; }
+  button { font-family: 'IBM Plex Sans', sans-serif; font-size: 0.9rem; font-weight: 600; border: none; border-radius: 6px; padding: 0.65rem 1.4rem; cursor: pointer; transition: opacity 0.15s, transform 0.1s; }
   button:active { transform: scale(0.97); }
-
-  .btn-primary {
-    background: var(--sky-accent);
-    color: var(--sky-dark);
-  }
-
-  .btn-secondary {
-    background: var(--card);
-    border: 1px solid var(--border);
-    color: var(--muted);
-  }
-
+  .btn-primary { background: var(--sky-accent); color: var(--sky-dark); }
+  .btn-secondary { background: var(--card); border: 1px solid var(--border); color: var(--muted); }
   button:hover { opacity: 0.88; }
 
-  /* Result cards */
-  .result {
-    max-width: 720px;
-    margin: 0 auto;
-    display: none;
-  }
-
+  .result { max-width: 720px; margin: 0 auto; display: none; }
   .result.visible { display: block; }
 
-  .station-header {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 1rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
+  .station-header { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+  .station-name { font-size: 1.3rem; font-weight: 600; }
+  .station-icao { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--sky-accent); letter-spacing: 0.1em; }
+  .obs-time { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--muted); }
 
-  .station-name {
-    font-size: 1.3rem;
-    font-weight: 600;
-  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; }
+  .card-label { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.4rem; }
+  .card-value { font-size: 1.4rem; font-weight: 600; color: var(--text); line-height: 1.2; }
+  .card-sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; }
+  .card-icon { font-size: 1.6rem; margin-bottom: 0.3rem; }
+  .full-width { grid-column: 1 / -1; }
 
-  .station-icao {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--sky-accent);
-    letter-spacing: 0.1em;
-  }
-
-  .obs-time {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1rem 1.25rem;
-  }
-
-  .card-label {
-    font-size: 0.7rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 0.4rem;
-  }
-
-  .card-value {
-    font-size: 1.4rem;
-    font-weight: 600;
-    color: var(--text);
-    line-height: 1.2;
-  }
-
-  .card-sub {
-    font-size: 0.78rem;
-    color: var(--muted);
-    margin-top: 0.2rem;
-  }
-
-  .card-icon {
-    font-size: 1.6rem;
-    margin-bottom: 0.3rem;
-  }
-
-  .full-width {
-    grid-column: 1 / -1;
-  }
-
-  .cloud-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    margin-top: 0.3rem;
-  }
-
-  .cloud-layer {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.85rem;
-    padding: 0.3rem 0;
-    border-bottom: 1px solid var(--border);
-    color: var(--cloud);
-  }
-
+  .cloud-row { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.3rem; }
+  .cloud-layer { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 0.3rem 0; border-bottom: 1px solid var(--border); color: var(--cloud); }
   .cloud-layer:last-child { border-bottom: none; }
 
-  .badge {
-    display: inline-block;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.7rem;
-    padding: 0.15rem 0.5rem;
-    border-radius: 4px;
-    background: var(--sky-mid);
-    color: var(--sky-accent);
-    border: 1px solid var(--border);
-    margin-right: 0.3rem;
-    margin-top: 0.3rem;
-  }
-
-  .flight-cat {
-    display: inline-block;
-    font-family: 'IBM Plex Mono', monospace;
-    font-weight: 600;
-    font-size: 0.85rem;
-    padding: 0.25rem 0.75rem;
-    border-radius: 5px;
-  }
-
+  .badge { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 4px; background: var(--sky-mid); color: var(--sky-accent); border: 1px solid var(--border); margin-right: 0.3rem; margin-top: 0.3rem; }
+  .flight-cat { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 0.85rem; padding: 0.25rem 0.75rem; border-radius: 5px; }
   .cat-vfr { background: #1a3d2b; color: var(--green); border: 1px solid var(--green); }
   .cat-mvfr { background: #1a2f4a; color: #6ab0e8; border: 1px solid #6ab0e8; }
   .cat-ifr { background: #3d1a1a; color: var(--red); border: 1px solid var(--red); }
   .cat-lifr { background: #2d0f2d; color: #c97fd4; border: 1px solid #c97fd4; }
 
-  .error-box {
-    background: #2d1515;
-    border: 1px solid var(--red);
-    border-radius: 8px;
-    padding: 1rem 1.25rem;
-    color: var(--red);
-    font-size: 0.9rem;
-    display: none;
-    max-width: 720px;
-    margin: 0 auto;
-  }
-
+  .error-box { background: #2d1515; border: 1px solid var(--red); border-radius: 8px; padding: 1rem 1.25rem; color: var(--red); font-size: 0.9rem; display: none; max-width: 720px; margin: 0 auto 1rem; }
   .error-box.visible { display: block; }
+  .raw-metar { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); background: var(--sky-mid); border-radius: 5px; padding: 0.5rem 0.75rem; margin-top: 0.75rem; word-break: break-all; line-height: 1.6; }
 
-  .raw-metar {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--muted);
-    background: var(--sky-mid);
-    border-radius: 5px;
-    padding: 0.5rem 0.75rem;
-    margin-top: 0.75rem;
-    word-break: break-all;
-    line-height: 1.6;
-  }
+  /* TAF specific */
+  .taf-period { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.75rem; overflow: hidden; }
+  .taf-period-header { padding: 0.75rem 1.25rem; background: var(--sky-mid); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.4rem; }
+  .taf-period-type { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; font-weight: 600; }
+  .taf-period-time { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); }
+  .type-base { color: var(--sky-accent); }
+  .type-becmg { color: var(--amber); }
+  .type-tempo { color: #c97fd4; }
+  .type-prob { color: var(--green); }
+  .taf-period-body { padding: 0.75rem 1.25rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.5rem; }
+  .taf-field { }
+  .taf-field-label { font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.15rem; }
+  .taf-field-value { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+  .taf-field-sub { font-size: 0.72rem; color: var(--muted); }
 
-  footer {
-    text-align: center;
-    margin-top: 3rem;
-    font-size: 0.75rem;
-    color: var(--muted);
-  }
-
-  @media (max-width: 480px) {
-    h1 { font-size: 1.5rem; }
-    .grid { grid-template-columns: 1fr 1fr; }
-  }
+  footer { text-align: center; margin-top: 3rem; font-size: 0.75rem; color: var(--muted); }
+  @media (max-width: 480px) { h1 { font-size: 1.5rem; } .grid { grid-template-columns: 1fr 1fr; } }
 </style>
 </head>
 <body>
-
 <header>
   <div class="logo">Weersverslag decoder</div>
-  <h1>METAR <span>Lezer</span></h1>
-  <p class="subtitle">Plak een METAR-bericht en ontvang een leesbaar weersoverzicht in metrische eenheden</p>
+  <h1>METAR & <span>TAF</span> Lezer</h1>
+  <p class="subtitle">Plak een bericht en ontvang een leesbaar weersoverzicht in metrische eenheden</p>
 </header>
 
-<div class="input-area">
-  <textarea id="metarInput" placeholder="Plak hier je METAR-bericht...
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('metar')">METAR</div>
+  <div class="tab" onclick="switchTab('taf')">TAF</div>
+</div>
+
+<!-- METAR Panel -->
+<div class="panel active" id="panel-metar">
+  <div class="input-area">
+    <textarea id="metarInput" placeholder="Plak hier je METAR-bericht...
 
 Voorbeeld:
 METAR EHDL 140655Z AUTO 30009KT 9999 -RA BKN019 BKN022 BKN027 14/10 Q1016 RERA REDZ WHT="></textarea>
-  <div class="btn-row">
-    <button class="btn-primary" onclick="parseMETAR()">Decodeer METAR</button>
-    <button class="btn-secondary" onclick="clearAll()">Wissen</button>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="parseMETAR()">Decodeer METAR</button>
+      <button class="btn-secondary" onclick="clearMetar()">Wissen</button>
+    </div>
+  </div>
+  <div class="error-box" id="metarError"></div>
+  <div class="result" id="metarResult">
+    <div class="station-header">
+      <div>
+        <div class="station-icao" id="resICAO"></div>
+        <div class="station-name" id="resStation"></div>
+      </div>
+      <div style="text-align:right">
+        <div class="obs-time" id="resTime"></div>
+        <div style="margin-top:0.3rem" id="resFlightCat"></div>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="card-icon">💨</div><div class="card-label">Wind</div><div class="card-value" id="resWind"></div><div class="card-sub" id="resWindSub"></div></div>
+      <div class="card"><div class="card-icon">👁️</div><div class="card-label">Zicht</div><div class="card-value" id="resVis"></div><div class="card-sub" id="resVisSub"></div></div>
+      <div class="card"><div class="card-icon">🌡️</div><div class="card-label">Temperatuur</div><div class="card-value" id="resTemp"></div><div class="card-sub" id="resTempSub"></div></div>
+      <div class="card"><div class="card-icon">💧</div><div class="card-label">Luchtvochtigheid</div><div class="card-value" id="resHumid"></div><div class="card-sub" id="resHumidSub"></div></div>
+      <div class="card"><div class="card-icon">🔵</div><div class="card-label">Luchtdruk (QNH)</div><div class="card-value" id="resPres"></div></div>
+      <div class="card"><div class="card-icon">🌧️</div><div class="card-label">Huidig weer</div><div class="card-value" id="resWX" style="font-size:1rem;line-height:1.5"></div></div>
+      <div class="card full-width"><div class="card-label">Bewolking</div><div class="cloud-row" id="resClouds"></div></div>
+      <div class="card full-width" id="recentCard" style="display:none"><div class="card-label">Recent weer</div><div id="resRecent" style="margin-top:0.3rem"></div></div>
+      <div class="card full-width" id="remarksCard" style="display:none"><div class="card-label">Overige informatie</div><div id="resRemarks" style="margin-top:0.3rem;font-size:0.85rem;color:var(--cloud)"></div></div>
+    </div>
+    <div class="raw-metar" id="resRaw"></div>
   </div>
 </div>
 
-<div class="error-box" id="errorBox"></div>
+<!-- TAF Panel -->
+<div class="panel" id="panel-taf">
+  <div class="input-area">
+    <textarea id="tafInput" placeholder="Plak hier je TAF-bericht...
 
-<div class="result" id="result">
-  <div class="station-header">
-    <div>
-      <div class="station-icao" id="resICAO"></div>
-      <div class="station-name" id="resStation"></div>
-    </div>
-    <div style="text-align:right">
-      <div class="obs-time" id="resTime"></div>
-      <div style="margin-top:0.3rem" id="resFlightCat"></div>
+Voorbeeld:
+TAF EHVK 141100Z 1412/1518 27012KT 9999 BKN025
+  TEMPO 1412/1416 27018G28KT 5000 -RASN BKN010
+  BECMG 1416/1418 30008KT 9999 SCT030="></textarea>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="parseTAF()">Decodeer TAF</button>
+      <button class="btn-secondary" onclick="clearTaf()">Wissen</button>
     </div>
   </div>
-
-  <div class="grid">
-    <div class="card">
-      <div class="card-icon">💨</div>
-      <div class="card-label">Wind</div>
-      <div class="card-value" id="resWind"></div>
-      <div class="card-sub" id="resWindSub"></div>
+  <div class="error-box" id="tafError"></div>
+  <div class="result" id="tafResult">
+    <div class="station-header">
+      <div>
+        <div class="station-icao" id="tafICAO"></div>
+        <div class="station-name" id="tafStation"></div>
+      </div>
+      <div style="text-align:right">
+        <div class="obs-time" id="tafIssued"></div>
+        <div class="obs-time" id="tafValid"></div>
+      </div>
     </div>
-    <div class="card">
-      <div class="card-icon">👁️</div>
-      <div class="card-label">Zicht</div>
-      <div class="card-value" id="resVis"></div>
-      <div class="card-sub" id="resVisSub"></div>
-    </div>
-    <div class="card">
-      <div class="card-icon">🌡️</div>
-      <div class="card-label">Temperatuur</div>
-      <div class="card-value" id="resTemp"></div>
-      <div class="card-sub" id="resTempSub"></div>
-    </div>
-    <div class="card">
-      <div class="card-icon">💧</div>
-      <div class="card-label">Luchtvochtigheid</div>
-      <div class="card-value" id="resHumid"></div>
-      <div class="card-sub" id="resHumidSub"></div>
-    </div>
-    <div class="card">
-      <div class="card-icon">🔵</div>
-      <div class="card-label">Luchtdruk (QNH)</div>
-      <div class="card-value" id="resPres"></div>
-      <div class="card-sub"></div>
-    </div>
-    <div class="card">
-      <div class="card-icon">🌧️</div>
-      <div class="card-label">Huidig weer</div>
-      <div class="card-value" id="resWX" style="font-size:1rem; line-height:1.5"></div>
-    </div>
-    <div class="card full-width">
-      <div class="card-label">Bewolking</div>
-      <div class="cloud-row" id="resClouds"></div>
-    </div>
-    <div class="card full-width" id="recentCard" style="display:none">
-      <div class="card-label">Recent weer</div>
-      <div id="resRecent" style="margin-top:0.3rem"></div>
-    </div>
-    <div class="card full-width" id="remarksCard" style="display:none">
-      <div class="card-label">Overige informatie</div>
-      <div id="resRemarks" style="margin-top:0.3rem; font-size:0.85rem; color:var(--cloud)"></div>
-    </div>
+    <div id="tafPeriods"></div>
+    <div class="raw-metar" id="tafRaw"></div>
   </div>
-
-  <div class="raw-metar" id="resRaw"></div>
 </div>
 
-<footer>
-  Tijden in UTC &nbsp;·&nbsp; Metrische eenheden &nbsp;·&nbsp; METAR-standaard ICAO Annex 3
-</footer>
+<footer>Tijden in UTC &nbsp;·&nbsp; Metrische eenheden &nbsp;·&nbsp; ICAO Annex 3</footer>
 
 <script>
+// ── Shared helpers ──────────────────────────────────────────────
 const WIND_DIRS = ['N','NNO','NO','ONO','O','OZO','ZO','ZZO','Z','ZZW','ZW','WZW','W','WNW','NW','NNW'];
+function degToDir(deg) { if (!deg || deg==360) return 'Variabel'; return WIND_DIRS[Math.round(deg/22.5)%16]; }
+function ktToKmh(kt) { return Math.round(kt*1.852); }
+function ktToMs(kt) { return (kt*0.514444).toFixed(1); }
+function ftToM(ft) { return Math.round(ft*0.3048); }
+function dewpointToRH(T,Td) { return Math.round(100*Math.exp((17.625*Td)/(243.04+Td))/Math.exp((17.625*T)/(243.04+T))); }
+function coverLabel(c) { return {SKC:'Onbewolkt',CLR:'Onbewolkt',FEW:'Weinig bewolkt',SCT:'Gedeeltelijk bewolkt',BKN:'Grotendeels bewolkt',OVC:'Geheel bewolkt',VV:'Verticaal zicht',NSC:'Geen significante bewolking'}[c]||c; }
+function coverFraction(c) { return {SKC:'0/8',CLR:'0/8',FEW:'1–2/8',SCT:'3–4/8',BKN:'5–7/8',OVC:'8/8'}[c]||''; }
 
-function degToDir(deg) {
-  if (deg === 0 || deg === 360) return 'Variabel';
-  const idx = Math.round(deg / 22.5) % 16;
-  return WIND_DIRS[idx];
-}
-
-function ktToKmh(kt) { return Math.round(kt * 1.852); }
-function ktToMs(kt) { return (kt * 0.514444).toFixed(1); }
-function ftToM(ft) { return Math.round(ft * 0.3048); }
-
-function dewpointToRH(T, Td) {
-  const rh = 100 * Math.exp((17.625 * Td) / (243.04 + Td)) / Math.exp((17.625 * T) / (243.04 + T));
-  return Math.round(rh);
-}
-
-function coverLabel(cover) {
-  const map = { SKC: 'Onbewolkt', CLR: 'Onbewolkt', FEW: 'Weinig bewolkt', SCT: 'Gedeeltelijk bewolkt', BKN: 'Grotendeels bewolkt', OVC: 'Geheel bewolkt', VV: 'Verticaal zicht' };
-  return map[cover] || cover;
-}
-
-function coverFraction(cover) {
-  const map = { SKC: '0/8', CLR: '0/8', FEW: '1–2/8', SCT: '3–4/8', BKN: '5–7/8', OVC: '8/8' };
-  return map[cover] || '';
-}
-
-const WX_CODES = {
-  'RA': 'regen', 'DZ': 'motregen', 'SN': 'sneeuw', 'SG': 'sneeuwkorrels',
-  'IC': 'ijskristallen', 'PL': 'ijskorrels', 'GR': 'hagel', 'GS': 'kleine hagel',
-  'FG': 'mist', 'BR': 'nevel', 'HZ': 'waas', 'FU': 'rook', 'DU': 'stof',
-  'SA': 'zand', 'VA': 'vulkaanas', 'SQ': 'windstoot', 'SS': 'zandstorm',
-  'DS': 'stofstorm', 'PO': 'stofwervels', 'TS': 'onweer', 'FC': 'trombe',
-  'UP': 'onbekende neerslag'
-};
-const WX_INT = { '-': 'Lichte ', '+': 'Zware ', 'VC': 'In de buurt: ' };
-const WX_DESC = { 'MI': 'ondiepe ', 'PR': 'gedeeltelijke ', 'BC': 'banken van ', 'DR': 'waaiende ', 'BL': 'stuivende ', 'SH': 'buiachtige ', 'TS': 'onweer met ', 'FZ': 'aanvriessende ' };
-
+const WX_CODES = { RA:'regen',DZ:'motregen',SN:'sneeuw',SG:'sneeuwkorrels',IC:'ijskristallen',PL:'ijskorrels',GR:'hagel',GS:'kleine hagel',FG:'mist',BR:'nevel',HZ:'waas',FU:'rook',DU:'stof',SA:'zand',VA:'vulkaanas',SQ:'windstoot',SS:'zandstorm',DS:'stofstorm',PO:'stofwervels',TS:'onweer',FC:'trombe',UP:'onbekende neerslag' };
+const WX_INT = {'-':'Lichte ','+':'Zware ','VC':'In de buurt: '};
+const WX_DESC = {MI:'ondiepe ',PR:'gedeeltelijke ',BC:'banken van ',DR:'waaiende ',BL:'stuivende ',SH:'buiachtige ',TS:'onweer met ',FZ:'aanvriessende '};
 function decodeWX(token) {
-  let s = token;
-  let out = '';
-  let intensity = '';
-  if (s.startsWith('-') || s.startsWith('+')) { intensity = WX_INT[s[0]] || ''; s = s.slice(1); }
-  else if (s.startsWith('VC')) { intensity = WX_INT['VC']; s = s.slice(2); }
-  let desc = '';
-  for (const d of Object.keys(WX_DESC)) { if (s.startsWith(d)) { desc = WX_DESC[d]; s = s.slice(d.length); break; } }
-  let phenom = WX_CODES[s] || s;
-  out = (intensity + desc + phenom);
-  return out.charAt(0).toUpperCase() + out.slice(1);
+  let s=token, intensity='', desc='';
+  if (s.startsWith('-')||s.startsWith('+')) { intensity=WX_INT[s[0]]||''; s=s.slice(1); }
+  else if (s.startsWith('VC')) { intensity=WX_INT['VC']; s=s.slice(2); }
+  for (const d of Object.keys(WX_DESC)) { if (s.startsWith(d)) { desc=WX_DESC[d]; s=s.slice(d.length); break; } }
+  const out = intensity+desc+(WX_CODES[s]||s);
+  return out.charAt(0).toUpperCase()+out.slice(1);
 }
-
 function flightCategory(vis, cloudBase) {
-  // vis in meters, cloudBase in meters (lowest BKN/OVC)
-  if (vis < 1500 || (cloudBase !== null && cloudBase < 150)) return ['LIFR', 'cat-lifr'];
-  if (vis < 4800 || (cloudBase !== null && cloudBase < 300)) return ['IFR', 'cat-ifr'];
-  if (vis < 8000 || (cloudBase !== null && cloudBase < 1000)) return ['MVFR', 'cat-mvfr'];
-  return ['VFR', 'cat-vfr'];
+  if (vis<1500||(cloudBase!==null&&cloudBase<150)) return ['LIFR','cat-lifr'];
+  if (vis<4800||(cloudBase!==null&&cloudBase<300)) return ['IFR','cat-ifr'];
+  if (vis<8000||(cloudBase!==null&&cloudBase<1000)) return ['MVFR','cat-mvfr'];
+  return ['VFR','cat-vfr'];
 }
 
+function parseWindToken(tok) {
+  const m = tok && tok.match(/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?KT$/);
+  if (!m) return null;
+  const dir=m[1], spd=parseInt(m[2]), gust=m[4]?parseInt(m[4]):null;
+  return { dir, spd, gust };
+}
+function renderWind(w) {
+  if (!w) return { main:'–', sub:'' };
+  const spdKmh=ktToKmh(w.spd), spdMs=ktToMs(w.spd);
+  if (w.dir==='VRB') return { main:`Variabel`, sub:`${spdKmh} km/u · ${spdMs} m/s (${w.spd} kt)` };
+  let sub=`${spdKmh} km/u · ${spdMs} m/s (${w.spd} kt)`;
+  if (w.gust) sub+=` · stoten ${ktToKmh(w.gust)} km/u · ${ktToMs(w.gust)} m/s`;
+  return { main:`${degToDir(parseInt(w.dir))} (${w.dir}°)`, sub };
+}
+
+function parseClouds(tokens, i) {
+  const layers=[], cloudPat=/^(SKC|CLR|NSC|NCD|FEW|SCT|BKN|OVC|VV)(\d{3})(CB|TCU)?$/;
+  while (tokens[i] && (cloudPat.test(tokens[i])||['SKC','CLR','NSC','NCD'].includes(tokens[i]))) {
+    const cm=tokens[i].match(cloudPat);
+    if (cm) { const hM=ftToM(parseInt(cm[2])*100); layers.push({cover:cm[1],heightM:hM,extra:cm[3]||''}); }
+    else layers.push({cover:tokens[i],heightM:null,extra:''});
+    i++;
+  }
+  return { layers, i };
+}
+function renderClouds(layers) {
+  if (!layers.length) return '<span style="color:var(--muted)">Geen wolkenwaarneming</span>';
+  return layers.map(cl => {
+    const frac=coverFraction(cl.cover);
+    return `<div class="cloud-layer"><span>${coverLabel(cl.cover)} (${cl.cover})${cl.extra?' · '+cl.extra:''}${frac?' <span style="color:var(--muted);font-size:0.75rem">'+frac+'</span>':''}</span><span style="font-family:'IBM Plex Mono',monospace">${cl.heightM!==null?cl.heightM+' m':''}</span></div>`;
+  }).join('');
+}
+function lowestSignifCloud(layers) {
+  let lowest=null;
+  for (const cl of layers) { if ((cl.cover==='BKN'||cl.cover==='OVC')&&cl.heightM!==null&&(lowest===null||cl.heightM<lowest)) lowest=cl.heightM; }
+  return lowest;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active', ['metar','taf'][i]===name));
+  document.querySelectorAll('.panel').forEach((p,i)=>p.classList.toggle('active', ['metar','taf'][i]===name));
+}
+
+function showErr(id, msg) { const el=document.getElementById(id); el.textContent=msg; el.classList.add('visible'); }
+function hideErr(id) { document.getElementById(id).classList.remove('visible'); }
+
+// ── METAR parser ────────────────────────────────────────────────
 function parseMETAR() {
-  const raw = document.getElementById('metarInput').value.trim();
-  const err = document.getElementById('errorBox');
-  const res = document.getElementById('result');
-  err.classList.remove('visible');
-  res.classList.remove('visible');
+  const raw=document.getElementById('metarInput').value.trim();
+  hideErr('metarError'); document.getElementById('metarResult').classList.remove('visible');
+  if (!raw) { showErr('metarError','Voer een METAR-bericht in.'); return; }
+  const lines=raw.split('\n');
+  let metarLine='';
+  for (const l of lines) { if (l.trim().startsWith('METAR')||l.match(/^[A-Z]{4}\s+\d{6}Z/)) { metarLine=l.trim(); break; } }
+  if (!metarLine) { for (const l of lines) { if (l.match(/[A-Z]{4}\s+\d{6}Z/)) { metarLine=l.trim(); break; } } }
+  if (!metarLine) { showErr('metarError','Geen geldige METAR-regel gevonden.'); return; }
 
-  if (!raw) { showError('Voer een METAR-bericht in.'); return; }
-
-  // Extract the METAR line
-  const lines = raw.split('\n');
-  let metarLine = '';
-  for (const l of lines) {
-    if (l.trim().startsWith('METAR') || l.match(/^[A-Z]{4}\s+\d{6}Z/)) {
-      metarLine = l.trim();
-      break;
-    }
-  }
-  if (!metarLine) {
-    // Try to find any line with station + time pattern
-    for (const l of lines) {
-      if (l.match(/[A-Z]{4}\s+\d{6}Z/)) { metarLine = l.trim(); break; }
-    }
-  }
-  if (!metarLine) { showError('Geen geldige METAR-regel gevonden. Zorg dat de regel begint met METAR of een ICAO-code gevolgd door de tijd.'); return; }
-
-  // Remove METAR prefix
-  const clean = metarLine.replace(/^METAR\s+(COR\s+)?/, '').trim();
-  const tokens = clean.split(/\s+/);
-  let i = 0;
-
-  // ICAO
-  const icao = tokens[i++];
-
-  // Time
-  const timeMatch = tokens[i] && tokens[i].match(/^(\d{2})(\d{2})(\d{2})Z$/);
-  let timeStr = '–';
-  if (timeMatch) {
-    timeStr = `${timeMatch[1]}e om ${timeMatch[2]}:${timeMatch[3]} UTC`;
+  const clean=metarLine.replace(/^METAR\s+(COR\s+)?/,'').trim();
+  const tokens=clean.split(/\s+/); let i=0;
+  const icao=tokens[i++];
+  const timeMatch=tokens[i]&&tokens[i].match(/^(\d{2})(\d{2})(\d{2})Z$/);
+  let timeStr='–'; if (timeMatch) { timeStr=`${timeMatch[1]}e om ${timeMatch[2]}:${timeMatch[3]} UTC`; i++; }
+  let auto=false; if (tokens[i]==='AUTO'||tokens[i]==='COR') { auto=tokens[i]==='AUTO'; i++; }
+  const wind=parseWindToken(tokens[i]); if (wind) i++;
+  if (tokens[i]&&tokens[i].match(/^\d{3}V\d{3}$/)) i++;
+  let visStr='–', visSub='';
+  if (tokens[i]==='CAVOK') { visStr='> 10 km'; visSub='CAVOK'; i++; }
+  else { const vm=tokens[i]&&tokens[i].match(/^(\d{4})$/); if (vm) { const v=parseInt(vm[1]); visStr=v>=9999?'≥ 10 km':`${v} m`; visSub=v>=9999?'goed zicht':v<1000?'slecht zicht':''; i++; } }
+  while (tokens[i]&&tokens[i].match(/^R\d{2}[LRC]?\//)) i++;
+  const wxPat=/^(\-|\+|VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|FG|VA|BR|HZ|DU|FU|SA|PO|SQ|FC|SS|DS|TS)+$/;
+  const wxTokens=[]; while (tokens[i]&&wxPat.test(tokens[i])) { wxTokens.push(tokens[i]); i++; }
+  const {layers:cloudLayers, i:i2}=parseClouds(tokens,i); i=i2;
+  let temp=null, dew=null;
+  const td=tokens[i]&&tokens[i].match(/^(M?)(\d{2})\/(M?)(\d{2})$/);
+  if (td) { temp=(td[1]==='M'?-1:1)*parseInt(td[2]); dew=(td[3]==='M'?-1:1)*parseInt(td[4]); i++; }
+  let qnh=null; if (tokens[i]&&tokens[i].match(/^Q\d{4}$/)) { qnh=parseInt(tokens[i].slice(1)); i++; }
+  const recentWX=[]; while (tokens[i]&&tokens[i].startsWith('RE')) { recentWX.push(WX_CODES[tokens[i].slice(2)]||tokens[i].slice(2)); i++; }
+  const remarks=[]; while (i<tokens.length) {
+    const t=tokens[i];
+    if (t==='=') { i++; continue; }
+    if (t==='WHT') remarks.push('Baanconditie: WHT – baan vrij of lichte sneeuw');
+    else if (t==='BLU') remarks.push('Baanconditie: BLU (blauw)');
+    else if (t==='GRN') remarks.push('Baanconditie: GRN (groen)');
+    else if (t==='YLO') remarks.push('Baanconditie: YLO (geel)');
+    else if (t==='AMB') remarks.push('Baanconditie: AMB (amber)');
+    else if (t==='RED') remarks.push('Baanconditie: RED (rood)');
+    else if (t==='NOSIG') remarks.push('Geen significante wijzigingen verwacht');
+    else if (t.match(/^R\d{2}/)) remarks.push(`Baancondities: ${t}`);
     i++;
   }
+  const lowest=lowestSignifCloud(cloudLayers);
+  const visNum=visStr==='≥ 10 km'||visStr==='> 10 km'?10000:parseInt(visStr);
+  const [cat,catClass]=flightCategory(isNaN(visNum)?10000:visNum,lowest);
+  const rh=temp!==null&&dew!==null?dewpointToRH(temp,dew):null;
+  const wRend=renderWind(wind);
 
-  // AUTO / COR
-  let auto = false;
-  if (tokens[i] === 'AUTO' || tokens[i] === 'COR') { auto = tokens[i] === 'AUTO'; i++; }
+  document.getElementById('resICAO').textContent=icao;
+  let stationName=icao;
+  const nameLine=raw.split('\n').find(l=>l.includes(icao)&&!l.startsWith('METAR'));
+  if (nameLine) { const parts=nameLine.split(/\s{2,}/); if (parts.length>=2) stationName=parts[1].trim().replace(/NLD|DEU|BEL|GBR|FRA|DNK/,'').trim()||icao; }
+  document.getElementById('resStation').textContent=stationName;
+  document.getElementById('resTime').textContent=timeStr+(auto?' · automatisch':'');
+  document.getElementById('resFlightCat').innerHTML=`<span class="flight-cat ${catClass}">${cat}</span>`;
+  document.getElementById('resWind').textContent=wRend.main;
+  document.getElementById('resWindSub').textContent=wRend.sub;
+  document.getElementById('resVis').textContent=visStr;
+  document.getElementById('resVisSub').textContent=visSub;
+  document.getElementById('resTemp').textContent=temp!==null?`${temp}°C`:'–';
+  document.getElementById('resTempSub').textContent=dew!==null?`Dauwpunt ${dew}°C`:'';
+  document.getElementById('resHumid').textContent=rh!==null?`${rh}%`:'–';
+  document.getElementById('resHumidSub').textContent='';
+  document.getElementById('resPres').textContent=qnh?`${qnh} hPa`:'–';
+  const wxEl=document.getElementById('resWX');
+  wxEl.style.color='';
+  if (wxTokens.length>0) wxEl.textContent=wxTokens.map(decodeWX).join(', ');
+  else { wxEl.textContent='Geen bijzonderheden'; wxEl.style.color='var(--muted)'; }
+  document.getElementById('resClouds').innerHTML=renderClouds(cloudLayers);
+  const recentCard=document.getElementById('recentCard');
+  recentCard.style.display=recentWX.length?'':'none';
+  if (recentWX.length) document.getElementById('resRecent').innerHTML=recentWX.map(w=>`<span class="badge">${w}</span>`).join(' ');
+  const remarksCard=document.getElementById('remarksCard');
+  remarksCard.style.display=remarks.length?'':'none';
+  if (remarks.length) document.getElementById('resRemarks').innerHTML=remarks.map(r=>`• ${r}`).join('<br>');
+  document.getElementById('resRaw').textContent=metarLine;
+  document.getElementById('metarResult').classList.add('visible');
+}
 
-  // Wind
-  let windStr = '–', windSub = '';
-  const windMatch = tokens[i] && tokens[i].match(/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?KT$/);
-  if (windMatch) {
-    const dir = windMatch[1];
-    const spd = parseInt(windMatch[2]);
-    const gust = windMatch[4] ? parseInt(windMatch[4]) : null;
-    const spdKmh = ktToKmh(spd);
-    if (dir === 'VRB') {
-      windStr = `Variabel ${spdKmh} km/u`;
-    } else {
-      const dirNum = parseInt(dir);
-      windStr = `${degToDir(dirNum)} (${dir}°)`;
-      windSub = `${spdKmh} km/u · ${ktToMs(spd)} m/s (${spd} kt)`;
-      if (gust) windSub += ` · windstoten ${ktToKmh(gust)} km/u · ${ktToMs(gust)} m/s`;
-    }
-    i++;
-    // Variable wind direction e.g. 270V350
-    if (tokens[i] && tokens[i].match(/^\d{3}V\d{3}$/)) { windSub += ` · variërend ${tokens[i]}`; i++; }
+// ── TAF parser ──────────────────────────────────────────────────
+function parseTAF() {
+  const raw=document.getElementById('tafInput').value.trim();
+  hideErr('tafError'); document.getElementById('tafResult').classList.remove('visible');
+  if (!raw) { showErr('tafError','Voer een TAF-bericht in.'); return; }
+
+  // Flatten & find TAF line
+  const flat=raw.replace(/\n\s+/g,' ').replace(/\n/g,' ');
+  const tafMatch=flat.match(/TAF(?:\s+(?:AMD|COR))?\s+([A-Z]{4})\s+(\d{6}Z)\s+(\d{4}\/\d{4})\s+(.*?)=?\s*$/);
+  if (!tafMatch) { showErr('tafError','Geen geldige TAF gevonden. Zorg dat het bericht begint met TAF.'); return; }
+
+  const icao=tafMatch[1];
+  const issuedRaw=tafMatch[2];
+  const validRaw=tafMatch[3];
+  const body=tafMatch[4].trim();
+
+  // Format issued time
+  const im=issuedRaw.match(/(\d{2})(\d{2})(\d{2})Z/);
+  const issuedStr=im?`Uitgegeven: ${im[1]}e om ${im[2]}:${im[3]} UTC`:'';
+
+  // Format valid period
+  function fmtPeriod(str) {
+    const m=str.match(/(\d{2})(\d{2})\/(\d{2})(\d{2})/);
+    if (!m) return str;
+    return `${m[1]}e ${m[2]}:00 – ${m[3]}e ${m[4]}:00 UTC`;
   }
+  const validStr=`Geldig: ${fmtPeriod(validRaw)}`;
 
-  // Visibility
-  let visStr = '–', visSub = '';
-  if (tokens[i] === 'CAVOK') {
-    visStr = '> 10 km'; visSub = 'CAVOK'; i++;
+  // Split into groups: base + change groups
+  // Split on TEMPO, BECMG, PROB\d\d (optionally followed by TEMPO), FM
+  const splitPat=/(TEMPO|BECMG|PROB\d{2}(?:\s+TEMPO)?|FM\d{6})/g;
+  const parts=[];
+  let lastIdx=0, m2;
+  const bodyStr=body;
+  const matches=[...bodyStr.matchAll(splitPat)];
+  if (matches.length===0) {
+    parts.push({type:'BASE', raw:bodyStr});
   } else {
-    const visMatch = tokens[i] && tokens[i].match(/^(\d{4})$/);
-    if (visMatch) {
-      const vm = parseInt(visMatch[1]);
-      visStr = vm >= 9999 ? '≥ 10 km' : `${vm} m`;
-      visSub = vm >= 9999 ? 'goed zicht' : vm < 1000 ? 'slecht zicht' : '';
-      i++;
+    parts.push({type:'BASE', raw:bodyStr.slice(0, matches[0].index).trim()});
+    for (let k=0;k<matches.length;k++) {
+      const start=matches[k].index;
+      const end=k+1<matches.length?matches[k+1].index:bodyStr.length;
+      parts.push({type:matches[k][0].trim(), raw:bodyStr.slice(start,end).trim()});
     }
   }
 
-  // Skip RVR
-  while (tokens[i] && tokens[i].match(/^R\d{2}[LRC]?\//)) i++;
-
-  // Present weather
-  const wxTokens = [];
-  const wxPat = /^(\-|\+|VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|FG|VA|BR|HZ|DU|FU|SA|PO|SQ|FC|SS|DS|TS)+$/;
-  while (tokens[i] && wxPat.test(tokens[i])) { wxTokens.push(tokens[i]); i++; }
-
-  // Clouds
-  const cloudLayers = [];
-  const cloudPat = /^(SKC|CLR|NSC|NCD|FEW|SCT|BKN|OVC|VV)(\d{3})(CB|TCU)?$/;
-  while (tokens[i] && (cloudPat.test(tokens[i]) || tokens[i] === 'SKC' || tokens[i] === 'CLR' || tokens[i] === 'NSC')) {
-    const cm = tokens[i].match(cloudPat);
-    if (cm) {
-      const heightFt = parseInt(cm[2]) * 100;
-      const heightM = ftToM(heightFt);
-      cloudLayers.push({ cover: cm[1], heightM, heightFt, extra: cm[3] || '' });
-    } else {
-      cloudLayers.push({ cover: tokens[i], heightM: null, heightFt: null, extra: '' });
-    }
-    i++;
+  // Parse each group
+  function parseGroup(raw) {
+    const tokens=raw.split(/\s+/); let i=0;
+    let type=tokens[i]; i++;
+    // For PROB30 TEMPO, skip the TEMPO that's already part of type
+    let timeRange=null, fm=null;
+    // FM time
+    const fmM=type.match(/^FM(\d{2})(\d{2})(\d{2})$/);
+    if (fmM) { fm={day:fmM[1],hour:fmM[2],min:fmM[3]}; }
+    // Time range
+    if (tokens[i]&&tokens[i].match(/^\d{4}\/\d{4}$/)) { timeRange=tokens[i]; i++; }
+    // Wind
+    const wind=parseWindToken(tokens[i]); if (wind) i++;
+    // Vis
+    let visStr='', visSub='';
+    if (tokens[i]==='CAVOK') { visStr='> 10 km'; visSub='CAVOK'; i++; }
+    else { const vm=tokens[i]&&tokens[i].match(/^(\d{4})$/); if (vm) { const v=parseInt(vm[1]); visStr=v>=9999?'≥ 10 km':`${v} m`; visSub=v>=9999?'goed zicht':v<1000?'slecht zicht':''; i++; } }
+    // WX
+    const wxPat=/^(\-|\+|VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|FG|VA|BR|HZ|DU|FU|SA|PO|SQ|FC|SS|DS|TS)+$/;
+    const wxTokens=[]; while (tokens[i]&&wxPat.test(tokens[i])) { wxTokens.push(tokens[i]); i++; }
+    // Clouds
+    const {layers,i:i2}=parseClouds(tokens,i);
+    // NSW
+    let nsw=false; if (tokens[i2]==='NSW') nsw=true;
+    return { type, timeRange, fm, wind, visStr, visSub, wxTokens, cloudLayers:layers, nsw };
   }
 
-  // Temp / dew
-  let temp = null, dew = null;
-  const tdMatch = tokens[i] && tokens[i].match(/^(M?)(\d{2})\/(M?)(\d{2})$/);
-  if (tdMatch) {
-    temp = (tdMatch[1] === 'M' ? -1 : 1) * parseInt(tdMatch[2]);
-    dew = (tdMatch[3] === 'M' ? -1 : 1) * parseInt(tdMatch[4]);
-    i++;
-  }
-
-  // QNH
-  let qnh = null;
-  if (tokens[i] && tokens[i].match(/^Q\d{4}$/)) { qnh = parseInt(tokens[i].slice(1)); i++; }
-
-  // Recent weather
-  const recentWX = [];
-  while (tokens[i] && tokens[i].startsWith('RE')) {
-    const code = tokens[i].slice(2);
-    recentWX.push(WX_CODES[code] || code);
-    i++;
-  }
-
-  // Remaining remarks
-  const remarks = [];
-  while (i < tokens.length) {
-    const t = tokens[i];
-    if (t === '=') { i++; continue; }
-    // Runway condition
-    if (t.match(/^R\d{2}/)) { remarks.push(`Baancondities: ${t}`); }
-    else if (t === 'WHT') remarks.push('Baanconditie: WHT (wit) – baan vrij of lichte sneeuw');
-    else if (t === 'BLU') remarks.push('Baanconditie: BLU (blauw)');
-    else if (t === 'GRN') remarks.push('Baanconditie: GRN (groen)');
-    else if (t === 'YLO') remarks.push('Baanconditie: YLO (geel)');
-    else if (t === 'AMB') remarks.push('Baanconditie: AMB (amber)');
-    else if (t === 'RED') remarks.push('Baanconditie: RED (rood)');
-    else if (t === 'NOSIG') remarks.push('Geen significante wijzigingen verwacht (NOSIG)');
-    else if (t === 'TEMPO') remarks.push('Tijdelijke wijzigingen verwacht');
-    i++;
-  }
-
-  // Flight category
-  let lowestSignif = null;
-  for (const cl of cloudLayers) {
-    if ((cl.cover === 'BKN' || cl.cover === 'OVC') && cl.heightM !== null) {
-      if (lowestSignif === null || cl.heightM < lowestSignif) lowestSignif = cl.heightM;
-    }
-  }
-  const visNum = visStr === '≥ 10 km' || visStr === '> 10 km' ? 10000 : parseInt(visStr);
-  const [cat, catClass] = flightCategory(isNaN(visNum) ? 10000 : visNum, lowestSignif);
-
-  // Humidity
-  let rh = null;
-  if (temp !== null && dew !== null) rh = dewpointToRH(temp, dew);
+  const groups=parts.map(p=>({...parseGroup(p.raw), rawLine:p.raw}));
 
   // Render
-  document.getElementById('resICAO').textContent = icao;
+  document.getElementById('tafICAO').textContent=icao;
+  document.getElementById('tafStation').textContent=icao;
+  document.getElementById('tafIssued').textContent=issuedStr;
+  document.getElementById('tafValid').textContent=validStr;
 
-  // Try to get station name from header lines
-  let stationName = icao;
-  const nameLine = raw.split('\n').find(l => l.includes(icao) && !l.startsWith('METAR'));
-  if (nameLine) {
-    const parts = nameLine.split(/\s{2,}/);
-    if (parts.length >= 2) stationName = parts[1].trim().replace(/NLD|DEU|BEL|GBR|FRA|DNK/, '').trim() || icao;
-  }
-  document.getElementById('resStation').textContent = stationName;
-  document.getElementById('resTime').textContent = timeStr + (auto ? ' · automatisch' : '');
-  document.getElementById('resFlightCat').innerHTML = `<span class="flight-cat ${catClass}">${cat}</span>`;
+  const periodsEl=document.getElementById('tafPeriods');
+  periodsEl.innerHTML='';
 
-  document.getElementById('resWind').textContent = windStr;
-  document.getElementById('resWindSub').textContent = windSub;
-  document.getElementById('resVis').textContent = visStr;
-  document.getElementById('resVisSub').textContent = visSub;
-  document.getElementById('resTemp').textContent = temp !== null ? `${temp}°C` : '–';
-  document.getElementById('resTempSub').textContent = dew !== null ? `Dauwpunt ${dew}°C` : '';
-  document.getElementById('resHumid').textContent = rh !== null ? `${rh}%` : '–';
-  document.getElementById('resHumidSub').textContent = '';
-  document.getElementById('resPres').textContent = qnh ? `${qnh} hPa` : '–';
+  groups.forEach((g,idx)=>{
+    const div=document.createElement('div');
+    div.className='taf-period';
 
-  // WX
-  const wxEl = document.getElementById('resWX');
-  if (wxTokens.length > 0) {
-    wxEl.textContent = wxTokens.map(decodeWX).join(', ');
-  } else {
-    wxEl.textContent = 'Geen bijzonderheden';
-    wxEl.style.color = 'var(--muted)';
-  }
+    // Type label & color
+    let typeLabel='Basisbericht', typeClass='type-base';
+    if (g.type==='TEMPO') { typeLabel='TEMPO – tijdelijk'; typeClass='type-tempo'; }
+    else if (g.type==='BECMG') { typeLabel='BECMG – verandering'; typeClass='type-becmg'; }
+    else if (g.type.startsWith('PROB')) { typeLabel=`${g.type} – waarschijnlijkheid`; typeClass='type-prob'; }
+    else if (g.fm) { typeLabel=`Van ${g.fm.day}e ${g.fm.hour}:${g.fm.min} UTC`; typeClass='type-base'; }
 
-  // Clouds
-  const cloudsEl = document.getElementById('resClouds');
-  cloudsEl.innerHTML = '';
-  if (cloudLayers.length === 0) {
-    cloudsEl.innerHTML = '<span style="color:var(--muted)">Geen wolkenwaarneming</span>';
-  } else {
-    for (const cl of cloudLayers) {
-      const row = document.createElement('div');
-      row.className = 'cloud-layer';
-      const left = `${coverLabel(cl.cover)} (${cl.cover})${cl.extra ? ' · ' + cl.extra : ''}`;
-      const right = cl.heightM !== null ? `${cl.heightM} m` : '';
-      const frac = coverFraction(cl.cover);
-      row.innerHTML = `<span>${left}${frac ? ' <span style="color:var(--muted);font-size:0.75rem">'+frac+'</span>' : ''}</span><span style="font-family:'IBM Plex Mono',monospace">${right}</span>`;
-      cloudsEl.appendChild(row);
+    const timeStr=g.timeRange?fmtPeriod(g.timeRange):'';
+
+    div.innerHTML=`<div class="taf-period-header">
+      <span class="taf-period-type ${typeClass}">${typeLabel}</span>
+      ${timeStr?`<span class="taf-period-time">${timeStr}</span>`:''}
+    </div>
+    <div class="taf-period-body" id="taf-body-${idx}"></div>`;
+    periodsEl.appendChild(div);
+
+    const body=div.querySelector(`#taf-body-${idx}`);
+    function field(label,value,sub='') {
+      if (!value) return '';
+      return `<div class="taf-field"><div class="taf-field-label">${label}</div><div class="taf-field-value">${value}</div>${sub?`<div class="taf-field-sub">${sub}</div>`:''}</div>`;
     }
-  }
 
-  // Recent WX
-  const recentCard = document.getElementById('recentCard');
-  if (recentWX.length > 0) {
-    recentCard.style.display = '';
-    document.getElementById('resRecent').innerHTML = recentWX.map(w => `<span class="badge">${w}</span>`).join(' ');
-  } else {
-    recentCard.style.display = 'none';
-  }
-
-  // Remarks
-  const remarksCard = document.getElementById('remarksCard');
-  if (remarks.length > 0) {
-    remarksCard.style.display = '';
-    document.getElementById('resRemarks').innerHTML = remarks.map(r => `• ${r}`).join('<br>');
-  } else {
-    remarksCard.style.display = 'none';
-  }
-
-  document.getElementById('resRaw').textContent = metarLine;
-  res.classList.add('visible');
-}
-
-function showError(msg) {
-  const err = document.getElementById('errorBox');
-  err.textContent = msg;
-  err.classList.add('visible');
-}
-
-function clearAll() {
-  document.getElementById('metarInput').value = '';
-  document.getElementById('errorBox').classList.remove('visible');
-  document.getElementById('result').classList.remove('visible');
-}
-
-// Allow Enter in textarea to not trigger parse (natural behavior)
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('metarInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); parseMETAR(); }
+    const wRend=renderWind(g.wind);
+    let html='';
+    if (g.wind) html+=field('💨 Wind', wRend.main, wRend.sub);
+    if (g.visStr) html+=field('👁️ Zicht', g.visStr, g.visSub);
+    if (g.wxTokens.length) html+=field('🌧️ Weer', g.wxTokens.map(decodeWX).join(', '));
+    if (g.nsw) html+=field('🌤️ Weer', 'Geen significante neerslag (NSW)');
+    if (g.cloudLayers.length) {
+      html+=`<div class="taf-field" style="grid-column:1/-1"><div class="taf-field-label">☁️ Bewolking</div><div class="cloud-row" style="margin-top:0.3rem">${renderClouds(g.cloudLayers)}</div></div>`;
+    }
+    // Flight cat for base
+    if (g.visStr) {
+      const vn=g.visStr==='≥ 10 km'||g.visStr==='> 10 km'?10000:parseInt(g.visStr);
+      const [cat,cls]=flightCategory(isNaN(vn)?10000:vn, lowestSignifCloud(g.cloudLayers));
+      html+=`<div class="taf-field"><div class="taf-field-label">Vluchtweer</div><div class="taf-field-value"><span class="flight-cat ${cls}">${cat}</span></div></div>`;
+    }
+    if (!html) html='<span style="color:var(--muted);font-size:0.85rem">Geen wijzigingen opgegeven</span>';
+    body.innerHTML=html;
   });
+
+  document.getElementById('tafRaw').textContent=flat.replace(/.*?(TAF)/,'$1').replace(/=\s*$/,'').trim();
+  document.getElementById('tafResult').classList.add('visible');
+}
+
+function clearMetar() { document.getElementById('metarInput').value=''; hideErr('metarError'); document.getElementById('metarResult').classList.remove('visible'); }
+function clearTaf() { document.getElementById('tafInput').value=''; hideErr('tafError'); document.getElementById('tafResult').classList.remove('visible'); }
+
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('metarInput').addEventListener('keydown',e=>{ if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();parseMETAR();} });
+  document.getElementById('tafInput').addEventListener('keydown',e=>{ if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();parseTAF();} });
 });
 </script>
 </body>
